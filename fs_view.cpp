@@ -58,16 +58,23 @@ void fs_view::loadf_out(const std::string& path) {
     dbw.exec_noget(dirh_sql);
     dbw.flush();
 
+    dbw.begin_transaction();
     std::string buffer_str;
     for (int i = 0; i < fd_list_hash_sorted.size(); i++){
-        str_compose(buffer_str,
-                    "INSERT INTO fd_table VALUES (",
-                    std::to_string(fd_list_hash_sorted[i].dir_ID), ",",
-                    "'", fd_list_hash_sorted[i].path, "'", ",",
-                    "'", fd_list_hash_sorted[i].fname, "'", ',',
-                    std::to_string(fd_list_hash_sorted[i].hash), ')');
-        dbw.exec_noget(buffer_str);
-        buffer_str.clear();
+        try{
+            str_compose(buffer_str,
+                        "INSERT INTO fd_table VALUES (",
+                        std::to_string(fd_list_hash_sorted[i].dir_ID), ",",
+                        "'", fd_list_hash_sorted[i].path, "'", ",",
+                        "'", fd_list_hash_sorted[i].fname, "'", ',',
+                        std::to_string(fd_list_hash_sorted[i].hash), ')');
+            dbw.exec_noget(buffer_str);
+            buffer_str.clear();
+        }
+        catch (std::runtime_error &err){
+            std::cout << "Insertion of " << fd_list_hash_sorted[i].path << " FAILED";
+            std::cout << err.what() << std::endl;
+        }
     }
 
     for (int i = 0; i < dir_structure_table.size(); i++){
@@ -78,6 +85,8 @@ void fs_view::loadf_out(const std::string& path) {
         dbw.exec_noget(buffer_str);
         buffer_str.clear();
     }
+
+    dbw.end_transaction();
 }
 
 void fs_view::form(const std::filesystem::path &path) {
@@ -168,34 +177,6 @@ fd_record &fs_view::get_fd_by_id(size_t dir_id) {
     return fd_list_id_sorted[dir_id];
 }
 
-FSTATUS fs_view::get_file_status(std::string &path, int32_t hash, bool if_dir) const {
-    struct cmp{
-        bool operator()(fd_record const& lhs, std::string const& rhs) const {
-            return lhs.path < rhs;
-        }
-
-        bool operator()(std::string const& lhs, fd_record const& rhs) const {
-            return lhs < rhs.path;
-        }
-    };
-
-    auto found_path_fd = std::equal_range(fd_list_path_sorted.begin(), fd_list_path_sorted.end(), path, cmp{}).first;
-    if (found_path_fd == fd_list_path_sorted.end()){
-        return FSTATUS::NOT_FOUND;
-    }
-    else if (found_path_fd->is_dir() == if_dir){
-        if (found_path_fd->hash != hash){
-            return FSTATUS::SAME_NAME_CONTENT_CHANGED;
-        }
-        else {
-            return FSTATUS::SAME_NAME_SAME_CONTENT;
-        }
-    }
-    else {
-        return FSTATUS::NOT_FOUND;
-    }
-}
-
 std::vector<size_t> fs_view::get_directory_children(size_t dir_id) {
     auto res = std::equal_range(dir_structure_table.begin(), dir_structure_table.end(), dir_id, dirh_cmp{});
     if (res.first == dir_structure_table.end()) return std::vector<size_t   > {};
@@ -217,10 +198,6 @@ std::vector<std::reference_wrapper<fd_record>> fs_view::get_fd_records_by_ids(st
         result.emplace_back(get_fd_by_id(i));
     }
     return result;
-}
-
-size_t fs_view::get_fd_count(const fs_view &fd) {
-    return fd.fd_list_id_sorted.size();
 }
 
 fd_record& fs_view::get_fd_by_path(const std::filesystem::path &path) {
@@ -264,6 +241,22 @@ void fs_view::copy_sort_every_table() {
     std::sort(dir_structure_table.begin(), dir_structure_table.end(), [](const dirh_record &l, const dirh_record &r){
         return l.parent < r.parent;
     });
+}
+
+size_t fs_view::get_file_count() const {
+    size_t res = 0;
+    for (auto &fd : fd_list_id_sorted){
+        if (!fd.is_dir()) res++;
+    }
+    return res;
+}
+
+size_t fs_view::get_fd_count() const {
+    return fd_list_id_sorted.size();
+}
+
+size_t fs_view::get_dirh_rel_count() const {
+    return dir_structure_table.size();
 }
 
 void fd_record::unify_root(std::vector<fd_record> &storage){

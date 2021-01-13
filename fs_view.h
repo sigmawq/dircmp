@@ -32,7 +32,7 @@ struct fd_record {
     std::string fname;
     int32_t hash;
 
-    bool is_dir() const { return fname.empty(); }
+    [[nodiscard]] bool is_dir() const { return fname.empty(); }
 
     fd_record() {}
 
@@ -41,7 +41,7 @@ struct fd_record {
 
     // Comparison engine should treat roots of both views as being one root folder.
     // It makes little sense to say that all files and directories from path ROOT were
-    // moved to path ROOT2
+    // moved to path ROOT2 //TODO?
     static void unify_root(std::vector<fd_record> &storage);
 };
 
@@ -80,8 +80,6 @@ public:
 
     fd_record& get_fd_by_id(size_t dir_id);
 
-    FSTATUS get_file_status(std::string& path, int32_t hash, bool if_dir) const;
-
     std::vector<std::filesystem::path> get_dirfd_sorted(const std::filesystem::path &path);
 
     // Returns IDs of children of given directory
@@ -90,13 +88,16 @@ public:
     // Returns reference array to provided ids
     std::vector<std::reference_wrapper<fd_record>> get_fd_records_by_ids(std::vector<size_t> ids);
 
-    static size_t get_fd_count(const fs_view &fd);
-
     fd_record& get_fd_by_path(const std::filesystem::path &path);
 
-    size_t get_children_count(const size_t dir_id) const;
+    [[nodiscard]] size_t get_children_count(size_t dir_id) const;
 
-    };
+    [[nodiscard]] size_t get_file_count() const;
+
+    [[nodiscard]] size_t get_fd_count() const;
+
+    [[nodiscard]] size_t get_dirh_rel_count() const;
+};
 
 struct dirh_cmp{
     bool operator()(dirh_record const& lhs, size_t rhs) const {

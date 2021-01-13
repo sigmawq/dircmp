@@ -203,6 +203,22 @@ void fs_comparator::link_between_potential_files() {
 }
 
 void fs_comparator::changes_summary_console() {
+    {
+        size_t f_count = first.get_file_count();
+        size_t f_count_m = second.get_file_count();
+        size_t dir_count = first.get_fd_count() - f_count;
+        size_t dir_count_m = second.get_fd_count() - f_count_m;
+
+        int64_t f_diff = f_count_m - f_count;
+        int64_t dir_diff = dir_count_m - dir_count;
+        std::cout << "--------------------------------" << std::endl;
+        std::cout << "Files before: " << f_count << std::endl;
+        std::cout << "Files after: " << f_count_m << '(' << f_diff << ')' << std::endl;
+        std::cout << "Directories before: " << dir_count << std::endl;
+        std::cout << "Directories after: " << dir_count_m << '(' << dir_diff << ')'
+                  << std::endl;
+    }
+
     auto get_finfo = [](const fd_record &rec){
         std::cout << "     " << rec.path << std::endl;
     };

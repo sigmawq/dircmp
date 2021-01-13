@@ -36,6 +36,10 @@ public:
     // Execute SQl. No return statement
     void exec_noget(const std::string& sql_statement);
 
+    void begin_transaction();
+
+    void end_transaction();
+
     // Execute SQL. Returned relation is determined by layout vector
     std::vector<std::vector<std::any>> exec(const std::string& sql_statement, const std::vector<std::type_index>& layout);
 

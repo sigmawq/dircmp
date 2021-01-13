@@ -7,7 +7,7 @@
 std::vector<std::any> db_wrapper::exec_get_row(const std::vector<std::type_index> &layout) {
         std::vector<std::any> row;
         row.reserve(layout.size());
-        size_t col = 0;
+        size_t col = 0; // TODO OPTIMIZE
         for (auto& l : layout){
             if (l == std::type_index { typeid(int32_t) }){
                 row.push_back(sqlite3_column_int(current_stmt, col));
@@ -27,7 +27,6 @@ std::vector<std::any> db_wrapper::exec_get_row(const std::vector<std::type_index
                 const void* res = sqlite3_column_text16(current_stmt, col);
                 if (res == nullptr) row.push_back(std::wstring {L""});
                 else row.push_back(std::wstring {reinterpret_cast<const wchar_t*>(res)});
-                // TODO: Fix
             }
             else if (l == std::type_index { typeid(float) }){
                 row.push_back(sqlite3_column_double(current_stmt, col));
@@ -45,6 +44,7 @@ void db_wrapper::exec_noget(const std::string &sql_statement) {
     auto status = sqlite3_prepare(db, sql_statement.c_str(), sql_statement.size(), &current_stmt, nullptr);
     if (status != SQLITE_OK) {
         std::cout << sqlite3_errmsg(db) << std::endl;
+        std::cout << "SQL statement: " << sql_statement << std::endl;
         throw std::runtime_error("Error while preparing sqlite statement");
     }
 
@@ -70,7 +70,11 @@ void db_wrapper::exec_noget(const std::string &sql_statement) {
 std::vector<std::vector<std::any>>
 db_wrapper::exec(const std::string &sql_statement, const std::vector<std::type_index> &layout) {
     auto status = sqlite3_prepare_v2(db, sql_statement.c_str(), -1, &current_stmt, nullptr);
-    if (status != SQLITE_OK) throw std::runtime_error("Error while preparing sqlite statement");
+    if (status != SQLITE_OK){
+        std::cout << sqlite3_errmsg(db) << std::endl;
+        std::cout << "SQL statement: " << sql_statement << std::endl;
+        throw std::runtime_error("Error while preparing sqlite statement");
+    }
 
     std::vector<std::vector<std::any>> table;
     bool run = true;
@@ -97,4 +101,12 @@ db_wrapper::exec(const std::string &sql_statement, const std::vector<std::type_i
 void db_wrapper::flush() {
     sqlite3_close(db);
     sqlite3_open(db_path.c_str(), &db);
+}
+
+void db_wrapper::begin_transaction() {
+    sqlite3_exec(db, "BEGIN TRANSACTION", NULL, NULL, NULL);
+}
+
+void db_wrapper::end_transaction() {
+    sqlite3_exec(db, "END TRANSACTION", NULL, NULL, NULL);
 }

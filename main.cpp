@@ -16,25 +16,39 @@ int main(int argc, char** argv) {
         std::cout << "dircmp cmp [path-to-original-view] [path-to-new-view] - compare 2 views" << std::endl;
     }
     else if (strcmp(argv[1], "create") == 0){
-        if (argc < 3){
+        if (argc < 4){
             std::cout << "dircmp create [folder] [name] - create filesystem view from provided folder using" <<
-            "custom name"
+            " custom name"
             << std::endl;
             return 0;
         }
         std::cout << "Path: " << argv[2] << std::endl;
         std::cout << "FS view name: " << argv[3] << std::endl;
 
+        auto time_now = std::chrono::high_resolution_clock::now();
         std::cout << "Forming directory structure..." << std::endl;
         fs_view fv;
         fv.form(argv[2]);
 
+        typedef std::chrono::seconds sec;
+        auto time_then = std::chrono::high_resolution_clock::now();
+        std::cout << "Directory structure formed in " << std::chrono::duration_cast<sec>((time_then - time_now)).count()
+        << " sec" << std::endl;
+        std::cout << "A total of " << fv.get_fd_count() << " files and directories" << " and " << fv.get_dirh_rel_count()
+        << " directory relations" << std::endl;
+
+        time_now = std::chrono::high_resolution_clock::now();
         std::cout << "Writing view to the disk..." << std::endl;
+
         fv.loadf_out(argv[3]);
+        time_then = std::chrono::high_resolution_clock::now();
+        std::cout << "View written to disk in " << std::chrono::duration_cast<sec>((time_then - time_now)).count()
+                  << " sec" << std::endl;
+
         std::cout << "Done." << std::endl;
     }
     else if (strcmp(argv[1], "cmp") == 0){
-        if (argc < 3){
+        if (argc < 4){
             std::cout << "dircmp cmp [path-to-original-view] [path-to-new-view]" << std::endl;
             return 0;
         }
