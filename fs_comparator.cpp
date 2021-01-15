@@ -17,8 +17,8 @@ void fs_comparator::initial_compare(size_t l_dir_id, size_t r_dir_id) {
     };
 
     // Initial compare
-    auto root1 = first.get_fd_by_id(l_dir_id);
-    auto root2 = second.get_fd_by_id(r_dir_id);
+    auto &root1 = first.get_fd_by_id(l_dir_id);
+    auto &root2 = second.get_fd_by_id(r_dir_id);
 
     df_container children_sep_first;
     df_container children_sep_second;
@@ -42,10 +42,9 @@ void fs_comparator::initial_compare(size_t l_dir_id, size_t r_dir_id) {
     {
         // Dirs
         std::filesystem::path path;
-        fd_record second_found;
         for (auto &dir : intersection.first) {
             path = dir.get().path;
-            second_found = second.get_fd_by_path(path);
+            fd_record &second_found = second.get_fd_by_path(path);
             if (!directory_equals(dir.get(), first, second_found, second)) {
                 // Directories not equal hence we need to add it to list and recusrively search it
                 this->changed_directories.push_back(dir);
@@ -56,7 +55,7 @@ void fs_comparator::initial_compare(size_t l_dir_id, size_t r_dir_id) {
         // Files
         for (auto &f : intersection.second) {
             path = f.get().path;
-            second_found = second.get_fd_by_path(path);
+            fd_record &second_found = second.get_fd_by_path(path);
             if (!directory_equals(f.get(), first, second_found, second)) {
                 // File changed, just add to list
                 this->changed_files.push_back(f);
@@ -202,92 +201,100 @@ void fs_comparator::link_between_potential_files() {
 
 }
 
-void fs_comparator::changes_summary_console() {
-    {
-        size_t f_count = first.get_file_count();
-        size_t f_count_m = second.get_file_count();
-        size_t dir_count = first.get_fd_count() - f_count;
-        size_t dir_count_m = second.get_fd_count() - f_count_m;
+std::string fs_comparator::changes_summary() {
+    std::string result;
+    size_t f_count = first.get_file_count();
+    size_t f_count_m = second.get_file_count();
+    size_t dir_count = first.get_fd_count() - f_count;
+    size_t dir_count_m = second.get_fd_count() - f_count_m;
 
-        int64_t f_diff = f_count_m - f_count;
-        int64_t dir_diff = dir_count_m - dir_count;
-        std::cout << "--------------------------------" << std::endl;
-        std::cout << "Files before: " << f_count << std::endl;
-        std::cout << "Files after: " << f_count_m << '(' << f_diff << ')' << std::endl;
-        std::cout << "Directories before: " << dir_count << std::endl;
-        std::cout << "Directories after: " << dir_count_m << '(' << dir_diff << ')'
-                  << std::endl;
-    }
+    int64_t f_diff = f_count_m - f_count;
+    int64_t dir_diff = dir_count_m - dir_count;
 
-    auto get_finfo = [](const fd_record &rec){
-        std::cout << "     " << rec.path << std::endl;
+    str_compose(result, "================dircmp comparison summary=================",
+                '\n', "New files: ", std::to_string(potentially_added_files.size()),
+                '\n', "New directories: ", std::to_string(potentially_added_directories.size()),
+                '\n', "Removed files: ", std::to_string(potentially_removed_files.size()),
+                '\n', "Removed directories: ", std::to_string(potentially_removed_directories.size()),
+                '\n', "Files before: ", std::to_string(f_count),
+                '\n', "Files after: " , std::to_string(f_count_m), '(', std::to_string(f_diff), ')',
+                '\n', "Directories before: ", std::to_string(dir_count),
+                '\n', "Directories after: ", std::to_string(dir_count_m), '(', std::to_string(dir_diff), ')',
+                '\n');
+
+    auto get_finfo = [](std::string &str, const fd_record &rec){
+        str_compose(str, "     ", rec.path, '\n');
     };
 
-    auto mrec_out = [](const moved_record &rec) {
-        std::cout << "     " << rec.path_old << " -> " << rec.path_new << std::endl;
+    auto mrec_out = [](std::string &str, const moved_record &rec) {
+        str_compose(str, "     ", rec.path_old.string(), " -> ",rec.path_new.string(), '\n');
     };
 
-    std::cout << "Files: " << std::endl;
-    std::cout << "  " << "Removed:" << std::endl;
+    str_compose(result, '\n', "===========================================================");
+
+    str_compose(result, '\n', " Files: ",
+                '\n', "  ", "Removed:", '\n');
     for (auto &el : potentially_removed_files){
-        get_finfo(el);
+        get_finfo(result, el);
     }
 
-    std::cout << "  " << "Added:" << std::endl;
+    str_compose(result, "  ", "Added:", '\n');
     for (auto &el : potentially_added_files){
-        get_finfo(el);
+        get_finfo(result, el);
     }
 
-    std::cout << "  " << "Renamed:" << std::endl;
+    str_compose(result, "  ", "Renamed:", '\n');
     for (auto &el : renamed_files){
-        mrec_out(el);
+        mrec_out(result, el);
     }
 
-    std::cout << "  " << "Changed:" << std::endl;
+    str_compose(result, "  ", "Changed:", '\n');
     for (auto &el : changed_files){
-        get_finfo(el);
+        get_finfo(result, el);
     }
 
-    std::cout << "  " << "Moved:" << std::endl;
+    str_compose(result, "  ", "Moved:", '\n');
     for (auto &el : moved_files){
-        mrec_out(el);
+        mrec_out(result, el);
     }
 
-    std::cout << "  " << "Moved and renamed:" << std::endl;
+    str_compose(result, "  ", "Moved and renamed:", '\n');
     for (auto &el : moved_and_renamed_files){
-        mrec_out(el);
+        mrec_out(result, el);
     }
 
-    std::cout << "Directories: " << std::endl;
-    std::cout << "  " << "Removed:" << std::endl;
+    str_compose(result, '\n', " Directories: ",
+                '\n', "  ", "Removed:", '\n');
     for (auto &el : potentially_removed_directories){
-        get_finfo(el);
+        get_finfo(result, el);
     }
 
-    std::cout << "  " << "Added:" << std::endl;
+    str_compose(result, "  ", "Added:", '\n');
     for (auto &el : potentially_added_directories){
-        get_finfo(el);
+        get_finfo(result, el);
     }
 
-    std::cout << "  " << "Renamed:" << std::endl;
+    str_compose(result, "  ", "Renamed:", '\n');
     for (auto &el : renamed_disrectories){
-        mrec_out(el);
+        mrec_out(result, el);
     }
 
-    std::cout << "  " << "Changed:" << std::endl;
+    str_compose(result, "  ", "Changed:", '\n');
     for (auto &el : changed_directories){
-        get_finfo(el);
+        get_finfo(result, el);
     }
 
-    std::cout << "  " << "Moved:" << std::endl;
+    str_compose(result, "  ", "Moved:", '\n');
     for (auto &el : moved_disrectories){
-        mrec_out(el);
+        mrec_out(result, el);
     }
 
-    std::cout << "  " << "Moved and renamed:" << std::endl;
+    str_compose(result, "  ", "Moved and renamed:", '\n');
     for (auto &el : moved_and_renamed_directories){
-        mrec_out(el);
+        mrec_out(result, el);
     }
+
+    return result;
 }
 
 void fs_comparator::resolve_removed_directories() {

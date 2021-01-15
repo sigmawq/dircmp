@@ -71,7 +71,7 @@ public:
 
     void do_comparison();
 
-    void changes_summary_console();
+    std::string changes_summary();
 };
 
 

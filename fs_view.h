@@ -8,6 +8,8 @@
 #include "db_wrapper.h"
 #include "auxullary.h"
 #include "algorithm"
+#include "pbar.h"
+#include "loggerpp/logger.h"
 
 #define INT32_T std::type_index { typeid(int32_t) }
 #define INT64_T std::type_index { typeid(int64_t) }
@@ -32,22 +34,19 @@ struct fd_record {
     std::string fname;
     int32_t hash;
 
-    [[nodiscard]] bool is_dir() const { return fname.empty(); }
+    [[nodiscard]] bool is_dir() const { return fname.size() == 0; } // TODO remove fname and set a flag
 
     fd_record() {}
 
     fd_record(int64_t dir_ID, const std::string path, const std::string fname, int32_t hash) :
             dir_ID(dir_ID), path(path), fname(fname), hash(hash) {};
-
-    // Comparison engine should treat roots of both views as being one root folder.
-    // It makes little sense to say that all files and directories from path ROOT were
-    // moved to path ROOT2 //TODO?
-    static void unify_root(std::vector<fd_record> &storage);
 };
 
 class fs_view{
 
     size_t global_fd_id = 0;
+
+    size_t files_read = 0;
 
     // Get all files and/or directories at path. Sorted.
     static std::vector<std::filesystem::path> get_dirfd_sorted(const std::string& path);
@@ -61,7 +60,7 @@ class fs_view{
     void copy_sort_every_table();
 
     // Internal form function. Returns hash of formed directory
-    int32_t form_internal(const std::filesystem::path& path, size_t parent_id);
+    int32_t form_internal(const std::filesystem::path& path, size_t parent_id, logger &logger);
 public:
     std::vector<fd_record> fd_list_id_sorted;
     std::vector<fd_record> fd_list_hash_sorted;
@@ -73,10 +72,10 @@ public:
     void loadf(const std::string& path);
 
     // Load existing fs_view to file
-    void loadf_out(const std::string& path);
+    void loadf_out(const std::string& path, logger &logger);
 
     // Create fs_view of path
-    void form(const std::filesystem::path& path);
+    void form(const std::filesystem::path& path, logger &logger);
 
     fd_record& get_fd_by_id(size_t dir_id);
 
@@ -86,7 +85,7 @@ public:
     std::vector<size_t> get_directory_children(size_t dir_id);
 
     // Returns reference array to provided ids
-    std::vector<std::reference_wrapper<fd_record>> get_fd_records_by_ids(std::vector<size_t> ids);
+    std::vector<std::reference_wrapper<fd_record>> get_fd_records_by_ids(const std::vector<size_t> &ids);
 
     fd_record& get_fd_by_path(const std::filesystem::path &path);
 

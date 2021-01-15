@@ -33,7 +33,7 @@ void fs_view::loadf(const std::string &path) {
     copy_sort_every_table();
 }
 
-void fs_view::loadf_out(const std::string& path) {
+void fs_view::loadf_out(const std::string& path, logger& logger) {
     create_file(path);
     db_wrapper dbw { path };
 
@@ -59,37 +59,44 @@ void fs_view::loadf_out(const std::string& path) {
     dbw.flush();
 
     dbw.begin_transaction();
+
+    size_t  ffailed = 0;
     std::string buffer_str;
-    for (int i = 0; i < fd_list_hash_sorted.size(); i++){
+    for (auto & i : fd_list_hash_sorted){
         try{
             str_compose(buffer_str,
                         "INSERT INTO fd_table VALUES (",
-                        std::to_string(fd_list_hash_sorted[i].dir_ID), ",",
-                        "'", fd_list_hash_sorted[i].path, "'", ",",
-                        "'", fd_list_hash_sorted[i].fname, "'", ',',
-                        std::to_string(fd_list_hash_sorted[i].hash), ')');
+                        std::to_string(i.dir_ID), ",",
+                        "'", i.path, "'", ",",
+                        "'", i.fname, "'", ',',
+                        std::to_string(i.hash), ')');
             dbw.exec_noget(buffer_str);
             buffer_str.clear();
         }
         catch (std::runtime_error &err){
-            std::cout << "Insertion of " << fd_list_hash_sorted[i].path << " FAILED";
+            std::cout << "Insertion of " << i.path << " FAILED" << std::endl;
             std::cout << err.what() << std::endl;
+            ffailed++;
+            logger.pushp("INSERTION FAILED", i.path, ' ', err.what());
         }
     }
 
-    for (int i = 0; i < dir_structure_table.size(); i++){
+    buffer_str.clear();
+    for (auto & i : dir_structure_table){
         str_compose(buffer_str,
                     "INSERT INTO directory_structure_list VALUES (",
-                    std::to_string(dir_structure_table[i].parent), ",",
-                    std::to_string(dir_structure_table[i].child), ")");
+                    std::to_string(i.parent), ",",
+                    std::to_string(i.child), ")");
         dbw.exec_noget(buffer_str);
         buffer_str.clear();
     }
 
+    std::cout << "Failed to insert " << ffailed << " files" << std::endl;
     dbw.end_transaction();
 }
 
-void fs_view::form(const std::filesystem::path &path) {
+void fs_view::form(const std::filesystem::path &path, logger &logger) {
+    logger.push("Reading directory: ", path.string());
     this->root_path = path;
 
     // Save current path to restore it later
@@ -105,15 +112,22 @@ void fs_view::form(const std::filesystem::path &path) {
     hashes.reserve(this_dir.size());
 
     for (auto& fname : this_dir){
-        if (std::filesystem::is_directory(fname)){
+        if (std::filesystem::is_directory(fname) && !std::filesystem::is_symlink(fname)){
             // Recursive call to the same function
-            hashes.push_back(form_internal(fname, current_dir_id));
+            hashes.push_back(form_internal(fname, current_dir_id, logger));
         }
-        else {
-            auto hash = crc_32_file(fname);
-            add_new_fd(fname, fname.filename(), hash);
-            add_dirh_relation(current_dir_id, global_fd_id - 1);
-            hashes.push_back(hash);
+        else if (std::filesystem::is_regular_file(fname)){
+            try{
+                logger.push("Reading file: ", fname);
+                auto hash = crc_32_file(fname);
+                add_new_fd(fname, fname.filename(), hash);
+                add_dirh_relation(current_dir_id, global_fd_id - 1);
+                hashes.push_back(hash);
+                files_read++;
+            }
+            catch (std::runtime_error &e) {
+                logger.pushp("std::runtime_error", e.what());
+            }
         }
     }
 
@@ -125,6 +139,9 @@ void fs_view::form(const std::filesystem::path &path) {
 
     // Restore path
     std::filesystem::current_path(retained_path);
+
+    files_read++;
+    logger.push(files_read, " files read");
 }
 
 std::vector<std::filesystem::path> fs_view::get_dirfd_sorted(const std::filesystem::path &path) {
@@ -142,7 +159,9 @@ void fs_view::add_new_fd(const std::string &path, const std::string &fname, int3
     this->global_fd_id++;
 }
 
-int32_t fs_view::form_internal(const std::filesystem::path &path, size_t parent) {
+int32_t fs_view::form_internal(const std::filesystem::path &path, size_t parent, logger &logger) {
+    logger.push("Reading directory: ", path.string());
+
     add_new_fd(path, "", 0);
     size_t current_dir_id = this->global_fd_id - 1;
     add_dirh_relation(parent, current_dir_id);
@@ -152,21 +171,33 @@ int32_t fs_view::form_internal(const std::filesystem::path &path, size_t parent)
     hashes.reserve(this_dir.size());
 
     for (auto& fname : this_dir){
-        if (std::filesystem::is_directory(fname)){
+        if (std::filesystem::is_directory(fname) && !std::filesystem::is_symlink(fname)){
             // Recursive call to the same function
-            hashes.push_back(form_internal(fname, current_dir_id));
+            hashes.push_back(form_internal(fname, current_dir_id, logger));
         }
-        else {
-            auto hash = crc_32_file(fname);
-            add_new_fd(fname, fname.filename(), hash);
-            add_dirh_relation(current_dir_id, global_fd_id - 1);
-            hashes.push_back(hash);
+        else if (std::filesystem::is_regular_file(fname)) {
+            try{
+                logger.push("Reading file: ", fname);
+                auto hash = crc_32_file(fname);
+                add_new_fd(fname, fname.filename(), hash);
+                add_dirh_relation(current_dir_id, global_fd_id - 1);
+                hashes.push_back(hash);
+                files_read++;
+            }
+            catch (std::runtime_error &e) {
+                logger.pushp("std::runtime_error", e.what());
+            }
+
         }
     }
 
-    get_fd_by_id(current_dir_id).hash = crc_32(
+    auto &current_dir = get_fd_by_id(current_dir_id);
+    current_dir.hash = crc_32(
             reinterpret_cast<const char *>(hashes.data()),
             (hashes.size() * sizeof(decltype(hashes)::value_type)));
+
+    files_read++;
+    return current_dir.hash;
 }
 
 void fs_view::add_dirh_relation(size_t parent, size_t child) {
@@ -179,7 +210,7 @@ fd_record &fs_view::get_fd_by_id(size_t dir_id) {
 
 std::vector<size_t> fs_view::get_directory_children(size_t dir_id) {
     auto res = std::equal_range(dir_structure_table.begin(), dir_structure_table.end(), dir_id, dirh_cmp{});
-    if (res.first == dir_structure_table.end()) return std::vector<size_t   > {};
+    if (res.first == dir_structure_table.end()) return std::move(std::vector<size_t> {});
     std::vector<size_t> children;
 
     size_t d = std::distance(res.first, res.second);
@@ -191,7 +222,7 @@ std::vector<size_t> fs_view::get_directory_children(size_t dir_id) {
    return children;
 }
 
-std::vector<std::reference_wrapper<fd_record>> fs_view::get_fd_records_by_ids(std::vector<size_t> ids) {
+std::vector<std::reference_wrapper<fd_record>> fs_view::get_fd_records_by_ids(const std::vector<size_t> &ids) {
     std::vector<std::reference_wrapper<fd_record>> result;
     result.reserve(ids.size());
     for (auto i : ids){
@@ -246,7 +277,7 @@ void fs_view::copy_sort_every_table() {
 size_t fs_view::get_file_count() const {
     size_t res = 0;
     for (auto &fd : fd_list_id_sorted){
-        if (!fd.is_dir()) res++;
+        if (!(fd.is_dir())) res++;
     }
     return res;
 }
@@ -257,7 +288,4 @@ size_t fs_view::get_fd_count() const {
 
 size_t fs_view::get_dirh_rel_count() const {
     return dir_structure_table.size();
-}
-
-void fd_record::unify_root(std::vector<fd_record> &storage){
 }

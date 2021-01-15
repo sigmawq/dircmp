@@ -5,7 +5,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS -O3)
 find_package(Boost COMPONENTS crc)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-add_executable(dircmp main.cpp file_h.h db_wrapper.cpp db_wrapper.h auxullary.h hashf.h fs_view.cpp fs_view.h fs_comparator.cpp fs_comparator.h)
+add_executable(dircmp main.cpp file_h.h db_wrapper.cpp db_wrapper.h auxullary.h hashf.h fs_view.cpp fs_view.h fs_comparator.cpp fs_comparator.h pbar.h pbar.cpp loggerpp/logger.h)
+message(${CMAKE_SOURCE_DIR})
+#include_directories(${CMAKE_SOURCE_DIR}/)
+target_link_libraries(dircmp ${CMAKE_SOURCE_DIR}/loggerpp/loggerpp.a)
 find_package (SQLite3)
 set(CMAKE_CXX_FLAGS -pthread)
 if (SQLITE3_FOUND)
@@ -13,6 +16,8 @@ if (SQLITE3_FOUND)
     target_link_libraries (dircmp ${SQLite3_LIBRARIES})
     message(${SQLite3_VERSION})
 endif (SQLITE3_FOUND)
+
+
 
 
 

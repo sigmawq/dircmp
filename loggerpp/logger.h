@@ -1,0 +1,108 @@
+//
+// Created by swql on 12/19/20.
+// Simple logger, that writes provided messages with timestamps to file, automatically created
+// by logger in folder path specified by user. Define LOGGER_TO_COUT to also output messages to
+// cout.
+//
+
+#ifndef LOGGER_LOGGER_H
+#define LOGGER_LOGGER_H
+#include <string>
+#include <filesystem>
+#include <memory>
+#include <iostream>
+#include <fstream>
+#include <algorithm>
+
+#ifdef LOGGER_TO_COUT
+#define LCOUT(str) std::cout << str
+#define LCOUT_NL(str) std::cout << str << std::endl
+#define PUSH_NL() std::cout << std::endl;
+#else
+#define LCOUT(str)
+#define LCOUT_NL(str)
+#define PUSH_NL()
+#endif
+
+
+class logger {
+
+    std::ofstream handle;
+
+    // Spacefree changes all spaces to '-'
+    static std::string get_timestamp(bool spacefree = false);
+
+    void create_new_log_file(std::filesystem::path& path, std::string* optional_name);
+
+    void handle_provided_path(std::filesystem::path& path, std::string* optional_path = nullptr);
+
+    void initialize(std::filesystem::path& path, std::string* optional_name = nullptr);
+
+    // Base case
+    template<typename none = void>
+    void push_same_line() {
+        PUSH_NL();
+        handle << '\n';
+        handle.flush();
+    }
+
+    template<typename Head, typename... Tail>
+    void push_same_line(Head head, Tail... messages){
+        LCOUT(head);
+        handle << head;
+        push_same_line(messages...);
+    }
+public:
+
+    // Create log with default name in path
+    explicit logger(std::filesystem::path& path);
+
+    // Create log with default name in path
+    explicit logger(std::string& path);
+
+    // Create log with default name in path
+    explicit logger(const char* path);
+
+    // Create log with custom name in path
+    explicit logger(std::filesystem::path& path, std::string& name);
+
+    // Create log with custom name in path
+    explicit logger(std::string& path, std::string& name);
+
+    // Create log with custom name in path
+    explicit logger(const char* path, std::string& name);
+
+    // Create log with default name in current directory
+    logger();
+
+    logger(const logger& other) = delete;
+
+    // Push a message to logger
+    template<typename Head, typename... Tail >
+    void push(Head h, Tail... t){
+        LCOUT("[");
+        auto ts = get_timestamp();
+        LCOUT(ts);
+        LCOUT("]: ");
+
+        handle << "[" << ts << "]: ";
+        push_same_line(h, t...);
+    }
+
+    // Push a message with provided prefix
+    template<typename Prefix, typename Head, typename... Tail >
+    void pushp(Prefix p, Head h, Tail... t){
+        LCOUT("[");
+        auto ts = get_timestamp();
+        LCOUT(ts);
+        LCOUT(", ");
+        LCOUT(p);
+        LCOUT("]: ");
+
+        handle << "[" << ts << ", " << p << "]: ";
+        push_same_line(h, t...);
+    }
+};
+
+
+#endif //LOGGER_LOGGER_H

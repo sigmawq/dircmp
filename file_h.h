@@ -31,7 +31,10 @@ static std::fstream new_file_t(std::string& path){
 static std::ifstream openf_t(std::string& path){
     std::ifstream file;
     file.open(path, std::ios::in);
-    if (!file.good()) throw std::runtime_error("Failed to open file");
+    if (!file.good()){
+        std::cout << "Failed to open: " << path << std::endl;
+        throw std::runtime_error("Failed to open file");
+    }
     return file;
 }
 
