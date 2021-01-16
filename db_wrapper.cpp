@@ -43,9 +43,11 @@ std::vector<std::any> db_wrapper::exec_get_row(const std::vector<std::type_index
 void db_wrapper::exec_noget(const std::string &sql_statement) {
     auto status = sqlite3_prepare(db, sql_statement.c_str(), sql_statement.size(), &current_stmt, nullptr);
     if (status != SQLITE_OK) {
-        std::cout << sqlite3_errmsg(db) << std::endl;
-        std::cout << "SQL statement: " << sql_statement << std::endl;
-        throw std::runtime_error("Error while preparing sqlite statement");
+        std::string err = "Error while preparing sqlite statement: ";
+        err += sqlite3_errmsg(db);
+        err += ". SQL statement: ";
+        err += sql_statement;
+        throw std::runtime_error(err);
     }
 
     status = sqlite3_step(current_stmt);
@@ -71,9 +73,11 @@ std::vector<std::vector<std::any>>
 db_wrapper::exec(const std::string &sql_statement, const std::vector<std::type_index> &layout) {
     auto status = sqlite3_prepare_v2(db, sql_statement.c_str(), -1, &current_stmt, nullptr);
     if (status != SQLITE_OK){
-        std::cout << sqlite3_errmsg(db) << std::endl;
-        std::cout << "SQL statement: " << sql_statement << std::endl;
-        throw std::runtime_error("Error while preparing sqlite statement");
+        std::string err = "Error while preparing sqlite statement: ";
+        err += sqlite3_errmsg(db);
+        err += ". SQL statement: ";
+        err += sql_statement;
+        throw std::runtime_error(err);
     }
 
     std::vector<std::vector<std::any>> table;

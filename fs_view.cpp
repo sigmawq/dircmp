@@ -67,8 +67,8 @@ void fs_view::loadf_out(const std::string& path, logger& logger) {
             str_compose(buffer_str,
                         "INSERT INTO fd_table VALUES (",
                         std::to_string(i.dir_ID), ",",
-                        "'", i.path, "'", ",",
-                        "'", i.fname, "'", ',',
+                        R"(")", i.path, R"(")", ",",
+                        R"(")", i.fname, R"(")", ',',
                         std::to_string(i.hash), ')');
             dbw.exec_noget(buffer_str);
             buffer_str.clear();
@@ -112,6 +112,7 @@ void fs_view::form(const std::filesystem::path &path, logger &logger) {
     hashes.reserve(this_dir.size());
 
     for (auto& fname : this_dir){
+
         if (std::filesystem::is_directory(fname) && !std::filesystem::is_symlink(fname)){
             // Recursive call to the same function
             hashes.push_back(form_internal(fname, current_dir_id, logger));
